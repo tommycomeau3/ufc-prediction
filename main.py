@@ -6,4 +6,7 @@ df = clean_ufc_data("data/ufc-master.csv")
 
 fighter_profiles = build_fighter_profiles(df)
 
+print("📋 Columns after cleaning:")
+print(df.columns.tolist())
+
 print(fighter_profiles[fighter_profiles['Fighter'] == 'Jon Jones'])
