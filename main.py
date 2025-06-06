@@ -1,12 +1,17 @@
-from scripts.preprocess import clean_ufc_data
-from scripts.preprocess import clean_ufc_data, build_fighter_profiles
+from scripts.preprocess import clean_ufc_data, scale_features
+from scripts.model import train_and_evaluate_model
 
-# Run the clean function on the UFC data
-df = clean_ufc_data("data/ufc-master.csv")
+# Step 1: Load and clean the data
+# Use the Kaggle “ufc-master.csv” file that ships with the repo
+df_clean = clean_ufc_data('data/ufc-master.csv')
+print("✅ Cleaned DataFrame shape:", df_clean.shape)
+print(df_clean.head())
 
-fighter_profiles = build_fighter_profiles(df)
+# Step 2: Scale and prepare features
+X_scaled, y = scale_features(df_clean)
+print("✅ X_scaled shape:", X_scaled.shape)
+print("✅ y shape:", y.shape)
+print("✅ First 5 target labels:", y.head().tolist())
 
-print("📋 Columns after cleaning:")
-print(df.columns.tolist())
-
-print(fighter_profiles[fighter_profiles['Fighter'] == 'Jon Jones'])
+# Step 3: Train and evaluate model
+model = train_and_evaluate_model(X_scaled, y)
