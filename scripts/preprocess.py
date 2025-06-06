@@ -1,93 +1,155 @@
+"""
+scripts/preprocess.py
+
+Data loading, cleaning, and feature-preparation helpers for the UFC fight
+outcome prediction pipeline.
+"""
+
+from __future__ import annotations
+
+import warnings
+from pathlib import Path
+from typing import Tuple, List
+
+import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-def clean_ufc_data(csv_path):
-    import pandas as pd
 
-    # Load the data
-    df = pd.read_csv(csv_path)
+# --------------------------------------------------------------------------- #
+# 1. Data loading & initial sanity checks
+# --------------------------------------------------------------------------- #
+def _read_csv(path: str | Path) -> pd.DataFrame:
+    """
+    Read a CSV with common encodings fallback.
 
-    # Drop irrelevant metadata and rarely filled columns
-    columns_to_drop = [
-        'Date', 'Location', 'Country', 'Finish', 'FinishRound', 'FinishRoundTime',
-        'TotalFightTimeSecs', 'TitleBout', 'Gender', 'NumberOfRounds', 'BetterRank', 'EmptyArena',
-        'RedDecOdds', 'BlueDecOdds', 'RSubOdds', 'BSubOdds', 'RKOOdds', 'BKOOdds',
+    Parameters
+    ----------
+    path : str | pathlib.Path
+        Location of the CSV file.
 
-        # Fighter-specific rankings — usually sparse
-        'RWFlyweightRank', 'RWFeatherweightRank', 'RWStrawweightRank', 'RWBantamweightRank',
-        'RHeavyweightRank', 'RLightHeavyweightRank', 'RMiddleweightRank', 'RWelterweightRank',
-        'RLightweightRank', 'RFeatherweightRank', 'RBantamweightRank', 'RFlyweightRank', 'RPFPRank',
-        'BWFlyweightRank', 'BWFeatherweightRank', 'BWStrawweightRank', 'BWBantamweightRank',
-        'BHeavyweightRank', 'BLightHeavyweightRank', 'BMiddleweightRank', 'BWelterweightRank',
-        'BLightweightRank', 'BFeatherweightRank', 'BBantamweightRank', 'BFlyweightRank', 'BPFPRank'
-    ]
-    df.drop(columns=columns_to_drop, inplace=True, errors='ignore')
+    Returns
+    -------
+    pd.DataFrame
+    """
+    encodings_to_try: List[str] = ["utf-8", "latin1"]
+    for enc in encodings_to_try:
+        try:
+            return pd.read_csv(path, encoding=enc)
+        except UnicodeDecodeError:
+            warnings.warn(f"Failed to read with encoding={enc}. Retrying…")
+    # Final attempt: let pandas infer
+    return pd.read_csv(path, encoding="utf-8", errors="replace")
 
-    # Keep only rows where the winner is clearly Red or Blue
-    df = df[df['Winner'].isin(['Red', 'Blue'])]
 
-    # Convert winner to binary: Red = 1, Blue = 0
-    df['Winner'] = df['Winner'].map({'Red': 1, 'Blue': 0})
-
-    # Drop columns that are completely empty
-    df.dropna(axis=1, how='all', inplace=True)
-
-    # Fill remaining missing values with 0
-    df.fillna(0, inplace=True)
-
+# --------------------------------------------------------------------------- #
+# 2. Cleaning helpers
+# --------------------------------------------------------------------------- #
+def _coerce_dates(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert Date column to pandas datetime (if present)."""
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
 
-def build_fighter_profiles(df):
-    # --- RED CORNER ---
-    red_df = df.copy()
-    red_df['Fighter'] = red_df['RedFighter']
-    red_df['Win'] = df['Winner']
-    red_stats = [col for col in df.columns if col.startswith('Red') and df[col].dtype != 'O' and col != 'RedFighter']
-    red_df = red_df[['Fighter', 'Win'] + red_stats]
-    red_df = red_df.rename(columns={col: col.replace('Red', '') for col in red_stats})
-
-    # --- BLUE CORNER ---
-    blue_df = df.copy()
-    blue_df['Fighter'] = blue_df['BlueFighter']
-    blue_df['Win'] = 1 - df['Winner']
-    blue_stats = [col for col in df.columns if col.startswith('Blue') and df[col].dtype != 'O' and col != 'BlueFighter']
-    blue_df = blue_df[['Fighter', 'Win'] + blue_stats]
-    blue_df = blue_df.rename(columns={col: col.replace('Blue', '') for col in blue_stats})
-
-    # --- COMBINE ---
-    all_fights = pd.concat([red_df, blue_df])
-    all_fights['FightOrder'] = all_fights.groupby('Fighter').cumcount()
-
-    # --- WIN RATE ---
-    winrate = all_fights.groupby('Fighter')['Win'].mean().reset_index()
-    winrate = winrate.rename(columns={'Win': 'WinRate'})
-
-    # --- MOST RECENT STREAK VALUES ---
-    streak_cols = ['CurrentWinStreak', 'CurrentLoseStreak']
-    has_streaks = all(col in all_fights.columns for col in streak_cols)
-
-    if has_streaks:
-        latest_streaks = (
-            all_fights
-            .sort_values('FightOrder')
-            .drop_duplicates('Fighter', keep='last')[['Fighter'] + streak_cols]
-        )
-    else:
-        latest_streaks = pd.DataFrame(columns=['Fighter'] + streak_cols)
-
-    # --- AVERAGE STATS (exclude streaks and target columns) ---
-    cols_to_exclude = ['Win', 'FightOrder'] + streak_cols
-    cols_to_drop = [col for col in cols_to_exclude if col in all_fights.columns]
-    stats_only = all_fights.drop(columns=cols_to_drop)
-    avg_stats = stats_only.groupby('Fighter').mean().reset_index()
-
-    # --- MERGE FINAL PROFILE ---
-    fighter_profiles = avg_stats.merge(winrate, on='Fighter', how='left')
-    fighter_profiles = fighter_profiles.merge(latest_streaks, on='Fighter', how='left')
-
-    return fighter_profiles
+def _create_target(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add binary `target` column: 1 if Red wins, 0 if Blue wins.
+    Removes rows without a definitive winner.
+    """
+    if "Winner" not in df.columns:
+        raise ValueError("Column 'Winner' missing in dataset.")
+    df = df[df["Winner"].isin(["Red", "Blue"])].copy()
+    df["target"] = (df["Winner"] == "Red").astype(int)
+    return df
 
 
+def _drop_high_missing(df: pd.DataFrame, threshold: float = 0.7) -> pd.DataFrame:
+    """
+    Drop columns whose missing-value ratio exceeds `threshold`.
+    """
+    keep_cols = df.columns[df.isna().mean() < threshold]
+    return df[keep_cols]
 
 
+# --------------------------------------------------------------------------- #
+# Public API
+# --------------------------------------------------------------------------- #
+def clean_ufc_data(path: str | Path) -> pd.DataFrame:
+    """
+    Load and clean the UFC dataset.
 
+    Steps
+    -----
+    1. Read CSV with tolerant encodings.
+    2. Parse date.
+    3. Create binary `target`.
+    4. Drop columns with >70 % missingness.
+    5. Reset index.
+
+    Returns
+    -------
+    Cleaned `pd.DataFrame`.
+    """
+    df = _read_csv(path)
+    df = _coerce_dates(df)
+    df = _create_target(df)
+    df = _drop_high_missing(df, threshold=0.7)
+    df = df.reset_index(drop=True)
+    return df
+
+
+def scale_features(df: pd.DataFrame) -> Tuple[np.ndarray, pd.Series]:
+    """
+    Prepare design-matrix `X` and label vector `y`.
+
+    • Numeric columns → median imputation + StandardScaler  
+    • Categorical columns (object/category) → most-frequent imputation + OneHot
+
+    Returns
+    -------
+    X_scaled : np.ndarray
+        Scaled/encoded feature matrix.
+    y        : pd.Series
+        Binary target vector (1 = Red wins).
+    """
+    if "target" not in df.columns:
+        raise KeyError("DataFrame must contain 'target' column. Have you run clean_ufc_data()?")
+
+    y = df["target"]
+
+    # Separate features
+    numeric_cols = df.select_dtypes(include=["number"]).columns.drop("target")
+    categorical_cols = (
+        df.select_dtypes(include=["object", "category"])
+        .columns.difference(["Winner"])  # drop raw winner label
+    )
+
+    numeric_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
+
+    categorical_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            # scikit-learn ≥1.2 renamed `sparse` → `sparse_output`
+            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ]
+    )
+
+    preprocessor: ColumnTransformer = ColumnTransformer(
+        transformers=[
+            ("num", numeric_pipeline, numeric_cols),
+            ("cat", categorical_pipeline, categorical_cols),
+        ],
+        remainder="drop",
+    )
+
+    X_scaled = preprocessor.fit_transform(df)
+    return X_scaled, y
