@@ -20,22 +20,97 @@ from typing import Tuple, Any # Lets you specify fixed-length tuples and disable
 
 import joblib # Allows for saving models
 import numpy as np # Numerical operations
-from sklearn.linear_model import LogisticRegression # Imports Logistic Regression model
+from sklearn.linear_model import LogisticRegression  # Imports Logistic Regression model
+from sklearn.ensemble import GradientBoostingClassifier  # Tree-based baseline
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report # Import evaluation metrics
 from sklearn.model_selection import train_test_split # Imports function to split data
 
 
-# Defines a helper function to save model
-def _save_model(model: Any, path: str | Path = "models/baseline_logreg.pkl") -> None: # Model can be any type and saves model to a string or Path
+# --------------------------------------------------------------------------- #
+# IO helpers
+# --------------------------------------------------------------------------- #
+def _save_model(model: Any, path: str | Path) -> None:
     """Persist estimator to disk (creates directory if missing)."""
-    path = Path(path) # path to Path object
-    path.parent.mkdir(parents=True, exist_ok=True) # Ensures parent directory exists (models/)
-    joblib.dump(model, path) # Saves model to disk
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, path)
     print(f"💾 Saved model → {path}")
 
 
 # --------------------------------------------------------------------------- #
+# Evaluation helpers
+# --------------------------------------------------------------------------- #
+def _evaluate(y_true: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarray) -> Tuple[float, float]:
+    """
+    Return accuracy and ROC-AUC.
+    """
+    acc = accuracy_score(y_true, y_pred)
+    roc = roc_auc_score(y_true, y_proba)
+    print("✅ Validation metrics:")
+    print(f"   • Accuracy : {acc:0.4f}")
+    print(f"   • ROC-AUC  : {roc:0.4f}")
+    print("   • Class report\n", classification_report(y_true, y_pred, digits=3))
+    return acc, roc
+
+
+# --------------------------------------------------------------------------- #
 # Public API
+# --------------------------------------------------------------------------- #
+def train_model(
+    X: np.ndarray,
+    y: np.ndarray,
+    model_type: str = "logreg",
+    test_size: float = 0.2,
+    random_state: int = 42,
+    save_path: str | Path | None = None,
+):
+    """
+    Generic training wrapper supporting multiple estimators.
+
+    Parameters
+    ----------
+    X, y : np.ndarray
+        Feature matrix and binary target vector.
+    model_type : {"logreg", "gbdt"}
+        Which estimator to train.
+    """
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y
+    )
+
+    if model_type == "logreg":
+        model = LogisticRegression(
+            penalty="l2",
+            solver="saga",
+            max_iter=10000,  # further increased to avoid ConvergenceWarning
+            tol=1e-4,
+            n_jobs=-1,
+            class_weight="balanced",
+        )
+        default_path = "models/baseline_logreg.pkl"
+    elif model_type == "gbdt":
+        model = GradientBoostingClassifier(random_state=random_state)
+        default_path = "models/gbdt.pkl"
+    else:
+        raise ValueError(f"Unknown model_type '{model_type}'")
+
+    # -------------------- Fit & evaluate -------------------- #
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    y_proba = model.predict_proba(X_val)[:, 1]
+    _evaluate(y_val, y_pred, y_proba)
+
+    # --------------------- Refit on full -------------------- #
+    model.fit(X, y)
+
+    # --------------------- Persist -------------------------- #
+    out_path = save_path or default_path
+    _save_model(model, out_path)
+    return model
+
+
+# --------------------------------------------------------------------------- #
+# Backwards-compat convenience
 # --------------------------------------------------------------------------- #
 def train_and_evaluate_model(
     X: np.ndarray, # NumPy array of shape (n_samples, n_features)
@@ -67,11 +142,12 @@ def train_and_evaluate_model(
 
     # Creates logistic regression model
     model = LogisticRegression(
-        penalty="l2", # Add regularization to prevent overfitting
-        solver="saga", # Sets algorithm used to optimize weights
-        max_iter=500, # Maximum number of iterations for the solver to try to converge
-        n_jobs=-1, # How many CPU cores the training can use (-1 means use all)
-        class_weight="balanced", # Adjust weight of each class based on frequency
+        penalty="l2",
+        solver="saga",
+        max_iter=10000,  # further increased to avoid ConvergenceWarning
+        tol=1e-4,
+        n_jobs=-1,
+        class_weight="balanced",
     )
 
     # Fits model based on training data
@@ -91,6 +167,7 @@ def train_and_evaluate_model(
 
     # Fit on full data before returning
     model.fit(X, y)
-    _save_model(model)
-
+    # Persist model to default location
+    _save_model(model, "models/baseline_logreg.pkl")
+    
     return model
