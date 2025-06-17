@@ -153,47 +153,58 @@ def build_recent_form_features(
     if not shared_bases:
         return df
 
+    # Sort chronologically and prepare container for new columns.  By collecting
+    # everything in one dict and concatenating once, we avoid the repeated
+    # ``df[col] = …`` insertions that caused the PerformanceWarning.
     df = df.sort_values("Date").copy()
-
+    new_cols: dict[str, pd.Series] = {}
+ 
     for base in shared_bases:
+        # ────────────────── Per-corner rolling / EWMA stats ─────────────────── #
         for corner in ["Red", "Blue"]:
             stat_col = f"{corner}{base}"
             if stat_col not in df.columns:
                 continue
-
+ 
             fighter_col = f"{corner}Fighter"
-
-            # Rolling mean of the previous *window* fights
+ 
+            # Rolling mean of the previous *window* fights (current bout excluded)
             roll_col = f"{stat_col}_roll{window}"
-            df[roll_col] = (
+            new_cols[roll_col] = (
                 df.groupby(fighter_col)[stat_col]
                 .shift()  # exclude current bout
                 .rolling(window=window, min_periods=1)
                 .mean()
             )
-
+ 
             # EWMA (time-decay weighting of all past fights)
             ewm_col = f"{stat_col}_ewm{ewma_span}"
-            df[ewm_col] = (
+            new_cols[ewm_col] = (
                 df.groupby(fighter_col)[stat_col]
                 .shift()
                 .ewm(span=ewma_span, adjust=False)
                 .mean()
             )
-
-        # -------------------------------- Diff versions ----------------------------------- #
+ 
+        # ────────────────────────── Differential versions ───────────────────── #
         red_roll = f"Red{base}_roll{window}"
         blue_roll = f"Blue{base}_roll{window}"
         diff_roll = f"{base}_roll{window}_diff"
-        if {red_roll, blue_roll} <= set(df.columns):
-            df[diff_roll] = df[red_roll] - df[blue_roll]
-
+        if red_roll in new_cols and blue_roll in new_cols:
+            new_cols[diff_roll] = new_cols[red_roll] - new_cols[blue_roll]
+ 
         red_ewm = f"Red{base}_ewm{ewma_span}"
         blue_ewm = f"Blue{base}_ewm{ewma_span}"
         diff_ewm = f"{base}_ewm{ewma_span}_diff"
-        if {red_ewm, blue_ewm} <= set(df.columns):
-            df[diff_ewm] = df[red_ewm] - df[blue_ewm]
-
+        if red_ewm in new_cols and blue_ewm in new_cols:
+            new_cols[diff_ewm] = new_cols[red_ewm] - new_cols[blue_ewm]
+ 
+    # Add all engineered columns to the DataFrame at once.
+    if new_cols:
+        df = pd.concat([df, pd.DataFrame(new_cols)], axis=1)
+        # Optional: defragment internal blocks in one cheap copy
+        df = df.copy()
+ 
     return df
 
 
