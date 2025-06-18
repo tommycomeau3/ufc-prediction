@@ -98,12 +98,31 @@ def train_model(
     model.fit(X_train, y_train)
     y_pred = model.predict(X_val)
     y_proba = model.predict_proba(X_val)[:, 1]
-    _evaluate(y_val, y_pred, y_proba)
+    _, val_roc = _evaluate(y_val, y_pred, y_proba)
+
+    # ---------------- Compare against existing best ---------------- #
+    best_path = Path("models/best.pkl")
+    best_roc = -1.0
+    if best_path.exists():
+        try:
+            best_model = joblib.load(best_path)
+            best_pred = best_model.predict(X_val)
+            best_proba = best_model.predict_proba(X_val)[:, 1]
+            best_roc = roc_auc_score(y_val, best_proba)
+            print(f"📊 Current best ROC-AUC = {best_roc:0.4f}")
+        except Exception as err:
+            print(f"⚠️  Failed to evaluate existing best model: {err}")
+
+    if val_roc >= best_roc:
+        print(f"🏆 New model beats / matches best (ROC {val_roc:0.4f} ≥ {best_roc:0.4f}). Saving as best.pkl")
+        _save_model(model, best_path)
+    else:
+        print(f"ℹ️  New model ROC {val_roc:0.4f} < best {best_roc:0.4f}. best.pkl remains unchanged.")
 
     # --------------------- Refit on full -------------------- #
     model.fit(X, y)
 
-    # --------------------- Persist -------------------------- #
+    # --------------------- Persist (model-type specific) ---- #
     out_path = save_path or default_path
     _save_model(model, out_path)
     return model
