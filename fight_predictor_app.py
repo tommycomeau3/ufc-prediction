@@ -150,45 +150,100 @@ def create_fight_dataframe(red_fighter, blue_fighter, historical_data):
     if red_stats is None or blue_stats is None:
         return None
     
-    # Create fight row
+    # Create fight row with all necessary columns
     fight_data = {
         'RedFighter': red_fighter,
         'BlueFighter': blue_fighter,
         'Winner': 'Red',  # Dummy value
         'Date': pd.Timestamp.now(),
         'TitleBout': False,
-        'WeightClass': 'Unknown',
+        'WeightClass': 'Welterweight',  # Default weight class
         'Gender': 'MALE',
         'NumberOfRounds': 3,
+        'Location': 'Las Vegas, Nevada, USA',  # Default location
+        'Country': 'USA',  # Default country
+        'RedStance': 'Orthodox',  # Default stance
+        'BlueStance': 'Orthodox',  # Default stance
+        'BetterRank': 'neither',  # Default ranking
+        'EmptyArena': False,
+        'TotalFightTimeSecs': 900,  # 15 minutes default
+        'Finish': 'No',
+        'FinishDetails': '',
+        'FinishRound': 3,
+        'FinishRoundTime': '5:00',
     }
     
     # Add red fighter stats
     for stat, value in red_stats.items():
         fight_data[f'Red{stat}'] = value
     
-    # Add blue fighter stats  
+    # Add blue fighter stats
     for stat, value in blue_stats.items():
         fight_data[f'Blue{stat}'] = value
     
-    # Fill missing values with defaults
+    # Fill missing values with comprehensive defaults
     default_values = {
+        # Basic fighter info
         'RedAge': 30, 'BlueAge': 30,
         'RedHeightCms': 175, 'BlueHeightCms': 175,
         'RedReachCms': 180, 'BlueReachCms': 180,
         'RedWeightLbs': 170, 'BlueWeightLbs': 170,
+        
+        # Fight record
         'RedWins': 10, 'BlueWins': 10,
         'RedLosses': 3, 'BlueLosses': 3,
+        'RedDraws': 0, 'BlueDraws': 0,
         'RedCurrentWinStreak': 2, 'BlueCurrentWinStreak': 2,
         'RedCurrentLoseStreak': 0, 'BlueCurrentLoseStreak': 0,
+        'RedLongestWinStreak': 3, 'BlueLongestWinStreak': 3,
+        
+        # Performance stats
         'RedAvgSigStrLanded': 4.0, 'BlueAvgSigStrLanded': 4.0,
         'RedAvgSigStrPct': 0.45, 'BlueAvgSigStrPct': 0.45,
+        'RedAvgSubAtt': 0.5, 'BlueAvgSubAtt': 0.5,
         'RedAvgTDLanded': 1.5, 'BlueAvgTDLanded': 1.5,
         'RedAvgTDPct': 0.4, 'BlueAvgTDPct': 0.4,
+        
+        # Title bouts and rounds
+        'RedTotalTitleBouts': 0, 'BlueTotalTitleBouts': 0,
+        'RedTotalRoundsFought': 30, 'BlueTotalRoundsFought': 30,
+        
+        # Win methods
+        'RedWinsByKO': 3, 'BlueWinsByKO': 3,
+        'RedWinsBySubmission': 2, 'BlueWinsBySubmission': 2,
+        'RedWinsByTKODoctorStoppage': 1, 'BlueWinsByTKODoctorStoppage': 1,
+        'RedWinsByDecisionUnanimous': 3, 'BlueWinsByDecisionUnanimous': 3,
+        'RedWinsByDecisionMajority': 1, 'BlueWinsByDecisionMajority': 1,
+        'RedWinsByDecisionSplit': 0, 'BlueWinsByDecisionSplit': 0,
+        
+        # Odds (dummy values)
+        'RedOdds': -150, 'BlueOdds': 130,
+        'RedExpectedValue': 150.0, 'BlueExpectedValue': 130.0,
+        'RedDecOdds': 200, 'BlueDecOdds': 250,
+        'RSubOdds': 500, 'BSubOdds': 600,
+        'RKOOdds': 300, 'BKOOdds': 350,
     }
     
     for key, default_val in default_values.items():
         if key not in fight_data:
             fight_data[key] = default_val
+    
+    # Create differential features that the pipeline expects
+    fight_data['WinStreakDif'] = fight_data['RedCurrentWinStreak'] - fight_data['BlueCurrentWinStreak']
+    fight_data['LoseStreakDif'] = fight_data['RedCurrentLoseStreak'] - fight_data['BlueCurrentLoseStreak']
+    fight_data['WinDif'] = fight_data['RedWins'] - fight_data['BlueWins']
+    fight_data['LossDif'] = fight_data['RedLosses'] - fight_data['BlueLosses']
+    fight_data['HeightDif'] = fight_data['RedHeightCms'] - fight_data['BlueHeightCms']
+    fight_data['ReachDif'] = fight_data['RedReachCms'] - fight_data['BlueReachCms']
+    fight_data['AgeDif'] = fight_data['RedAge'] - fight_data['BlueAge']
+    fight_data['SigStrDif'] = fight_data['RedAvgSigStrLanded'] - fight_data['BlueAvgSigStrLanded']
+    fight_data['AvgSubAttDif'] = fight_data['RedAvgSubAtt'] - fight_data['BlueAvgSubAtt']
+    fight_data['AvgTDDif'] = fight_data['RedAvgTDLanded'] - fight_data['BlueAvgTDLanded']
+    fight_data['TotalRoundDif'] = fight_data['RedTotalRoundsFought'] - fight_data['BlueTotalRoundsFought']
+    fight_data['TotalTitleBoutDif'] = fight_data['RedTotalTitleBouts'] - fight_data['BlueTotalTitleBouts']
+    fight_data['KODif'] = fight_data['RedWinsByKO'] - fight_data['BlueWinsByKO']
+    fight_data['SubDif'] = fight_data['RedWinsBySubmission'] - fight_data['BlueWinsBySubmission']
+    fight_data['LongestWinStreakDif'] = fight_data['RedLongestWinStreak'] - fight_data['BlueLongestWinStreak']
     
     return pd.DataFrame([fight_data])
 
@@ -207,26 +262,24 @@ def predict_fight(red_fighter, blue_fighter, models, historical_data):
     for model_name, model in models.items():
         try:
             if model_name == 'logistic':
-                # Pipeline model - can handle raw data
-                X = fight_df.drop(columns=['Winner'])
+                # Pipeline model - needs full preprocessing pipeline
+                # Apply same preprocessing as training data
+                from scripts.preprocess import _coerce_dates, _create_target, _drop_high_missing
+                from scripts.features import engineer_features
                 
-                # Add missing columns that pipeline expects
-                missing_cols = {
-                    'TotalFightTimeSecs': 900,
-                    'Finish': 'No',
-                    'FinishDetails': '',
-                    'FinishRound': 3,
-                    'FinishRoundTime': '5:00',
-                    'EmptyArena': False
-                }
+                # Create a copy for processing
+                fight_processed = fight_df.copy()
                 
-                for col, default_val in missing_cols.items():
-                    if col not in X.columns:
-                        X[col] = default_val
+                # Apply preprocessing steps
+                fight_processed = _coerce_dates(fight_processed)
+                fight_processed = _create_target(fight_processed)
+                fight_processed = _drop_high_missing(fight_processed, threshold=0.7)
                 
                 # Apply feature engineering
-                from scripts.features import engineer_features
-                X = engineer_features(X)
+                fight_processed = engineer_features(fight_processed)
+                
+                # Drop target column for prediction
+                X = fight_processed.drop(columns=['target'])
                 
                 # Make prediction
                 prob = model.predict_proba(X)[0, 1]  # Probability of red winning
@@ -235,11 +288,20 @@ def predict_fight(red_fighter, blue_fighter, models, historical_data):
                 
             else:
                 # Gradient boost model - needs preprocessing
-                from scripts.preprocess import scale_features
-                
-                # Apply feature engineering first
+                from scripts.preprocess import _coerce_dates, _create_target, _drop_high_missing, scale_features
                 from scripts.features import engineer_features
-                fight_processed = engineer_features(fight_df)
+                
+                # Create a copy for processing
+                fight_processed = fight_df.copy()
+                
+                # Apply preprocessing steps (same as training)
+                fight_processed = _coerce_dates(fight_processed)
+                fight_processed = _create_target(fight_processed)
+                fight_processed = _drop_high_missing(fight_processed, threshold=0.7)
+                fight_processed = fight_processed.reset_index(drop=True)
+                
+                # Apply feature engineering
+                fight_processed = engineer_features(fight_processed)
                 
                 # Scale features
                 X_processed, _ = scale_features(fight_processed)
