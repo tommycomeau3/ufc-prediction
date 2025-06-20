@@ -70,7 +70,34 @@ def main() -> None:
     upcoming_df["prob_f1_win"] = prob_f1_win
     upcoming_df["pred_f1_win"] = pred_f1_win
     upcoming_df.to_csv(OUT_CSV, index=False)
-    print(f"Predictions saved → {OUT_CSV.resolve()}")
+    
+    # Display predictions in terminal
+    print("\n" + "="*80)
+    print("FIGHT PREDICTIONS")
+    print("="*80)
+    
+    for i, row in upcoming_df.iterrows():
+        red_fighter = row['RedFighter']
+        blue_fighter = row['BlueFighter']
+        prob_red_win = row['prob_f1_win']
+        prob_blue_win = 1 - prob_red_win
+        predicted_winner = red_fighter if row['pred_f1_win'] == 1 else blue_fighter
+        confidence = max(prob_red_win, prob_blue_win)
+        
+        print(f"\n{red_fighter} vs {blue_fighter}")
+        print(f"  {red_fighter}: {prob_red_win:.1%} chance to win")
+        print(f"  {blue_fighter}: {prob_blue_win:.1%} chance to win")
+        print(f"  → PREDICTION: {predicted_winner} wins ({confidence:.1%} confidence)")
+        
+        # Add date and location if available
+        if 'Date' in row and pd.notna(row['Date']):
+            print(f"  📅 {row['Date'].strftime('%B %d, %Y') if hasattr(row['Date'], 'strftime') else row['Date']}")
+        if 'Location' in row and pd.notna(row['Location']):
+            print(f"  📍 {row['Location']}")
+    
+    print("\n" + "="*80)
+    print(f"Predictions also saved to: {OUT_CSV.resolve()}")
+    print("="*80)
 
 
 if __name__ == "__main__":

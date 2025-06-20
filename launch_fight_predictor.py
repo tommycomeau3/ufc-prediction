@@ -25,9 +25,28 @@ def main():
         return
     
     print("✅ Data and models found")
+    
+    # Quick test to make sure everything works
+    print("🧪 Testing prediction functionality...")
+    try:
+        from fight_predictor_app import load_fighter_data, load_models
+        fighters_list, historical_data = load_fighter_data()
+        models = load_models()
+        
+        if fighters_list and models:
+            print(f"✅ Loaded {len(fighters_list)} fighters and {len(models)} models")
+        else:
+            print("❌ Failed to load data or models")
+            return
+            
+    except Exception as e:
+        print(f"❌ Error testing functionality: {e}")
+        return
+    
     print("\n🚀 Launching interactive fight predictor at http://localhost:8502")
     print("🥊 Select any two fighters to see who would win!")
-    print("🛑 Press Ctrl+C to stop the server\n")
+    print("📊 Both Logistic Regression and Gradient Boosting models will make predictions")
+    print("� Press Ctrl+C to stop the server\n")
     
     # Launch Streamlit
     try:
