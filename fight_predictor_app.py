@@ -93,7 +93,9 @@ def load_models():
     try:
         if Path("models/stage1_logreg_pipeline.pkl").exists():
             models['logistic'] = joblib.load("models/stage1_logreg_pipeline.pkl")
-        if Path("models/best.pkl").exists():
+        if Path("models/gbdt_final.pkl").exists():
+            models['gradient_boost'] = joblib.load("models/gbdt_final.pkl")
+        elif Path("models/best.pkl").exists():
             models['gradient_boost'] = joblib.load("models/best.pkl")
     except Exception as e:
         st.error(f"Error loading models: {e}")
@@ -287,34 +289,54 @@ def predict_fight(red_fighter, blue_fighter, models, historical_data):
                 confidence = max(prob, 1-prob)
                 
             else:
-                # Gradient boost model - needs preprocessing
-                from scripts.preprocess import _coerce_dates, _create_target, _drop_high_missing, scale_features
-                from scripts.features import engineer_features
-                
-                # Create a copy for processing
-                fight_processed = fight_df.copy()
-                
-                # Apply preprocessing steps (same as training)
-                fight_processed = _coerce_dates(fight_processed)
-                fight_processed = _create_target(fight_processed)
-                fight_processed = _drop_high_missing(fight_processed, threshold=0.7)
-                fight_processed = fight_processed.reset_index(drop=True)
-                
-                # Apply feature engineering
-                fight_processed = engineer_features(fight_processed)
-                
-                # Scale features
-                X_processed, _ = scale_features(fight_processed)
-                
-                # Handle feature mismatch by padding
-                if X_processed.shape[1] < 4415:
-                    padding = np.zeros((X_processed.shape[0], 4415 - X_processed.shape[1]))
-                    X_processed = np.hstack([X_processed, padding])
-                
-                # Make prediction
-                prob = model.predict_proba(X_processed)[0, 1]
-                winner = 'Red' if prob > 0.5 else 'Blue'
-                confidence = max(prob, 1-prob)
+                # Gradient boost model - use simplified preprocessing
+                try:
+                    # Load the preprocessor for the new model
+                    preprocessor_path = "models/gbdt_final_preprocessor.pkl"
+                    if Path(preprocessor_path).exists():
+                        preprocessor = joblib.load(preprocessor_path)
+                        
+                        # Apply simplified preprocessing
+                        from scripts.preprocess_simple import _coerce_dates, _create_target, _drop_high_missing
+                        from scripts.features_simple import engineer_features_simple
+                        
+                        fight_processed = fight_df.copy()
+                        fight_processed = _coerce_dates(fight_processed)
+                        fight_processed = _create_target(fight_processed)
+                        
+                        # Preserve important columns before dropping high missing
+                        important_cols = ['Finish', 'FinishRound', 'TotalFightTimeSecs', 'EmptyArena']
+                        preserved_data = {}
+                        for col in important_cols:
+                            if col in fight_processed.columns:
+                                preserved_data[col] = fight_processed[col].copy()
+                        
+                        fight_processed = _drop_high_missing(fight_processed, threshold=0.7)
+                        
+                        # Restore important columns
+                        for col, data in preserved_data.items():
+                            if col not in fight_processed.columns:
+                                fight_processed[col] = data
+                        
+                        fight_processed = fight_processed.reset_index(drop=True)
+                        fight_processed = engineer_features_simple(fight_processed)
+                        
+                        # Use the fitted preprocessor
+                        X_processed = preprocessor.transform(fight_processed)
+                        
+                        # Make prediction
+                        prob = model.predict_proba(X_processed)[0, 1]
+                        winner = 'Red' if prob > 0.5 else 'Blue'
+                        confidence = max(prob, 1-prob)
+                        
+                    else:
+                        # Fallback to old method if preprocessor not found
+                        st.error("New preprocessor not found. Please retrain the model.")
+                        continue
+                        
+                except Exception as e:
+                    st.error(f"Error with simplified preprocessing: {e}")
+                    continue
             
             predictions[model_name] = {
                 'winner': winner,
