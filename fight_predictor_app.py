@@ -1,7 +1,7 @@
 """
-UFC Fight Predictor - Interactive Web Interface
+UFC Fight Predictor - Interactive Web Interface (Redesigned)
 
-A Streamlit web application where users can enter two fighters and get predictions.
+A modern, beautiful Streamlit web application where users can enter two fighters and get predictions.
 
 Run with: streamlit run fight_predictor_app.py
 """
@@ -16,60 +16,302 @@ warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="UFC Fight Predictor",
+    page_title="UFC Fight Predictor | Interactive",
     page_icon="🥊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS
+# Modern Custom CSS
 st.markdown("""
 <style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    
+    /* Global Styles */
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Main Header */
     .main-header {
-        font-size: 3rem;
-        color: #FF6B35;
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #FF0000 0%, #000000 50%, #0066FF 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         text-align: center;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
+    }
+    
+    .sub-header {
+        text-align: center;
+        color: #6b7280;
+        font-size: 1.1rem;
         margin-bottom: 2rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        font-weight: 400;
     }
-    .fighter-input {
-        background-color: #f8f9fa;
+    
+    /* Fighter Input Cards */
+    .fighter-input-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         padding: 2rem;
-        border-radius: 1rem;
-        border: 2px solid #FF6B35;
-        margin: 1rem 0;
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.06);
+        border: 2px solid;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
+    
+    .fighter-input-card.red {
+        border-color: #DC2626;
+    }
+    
+    .fighter-input-card.blue {
+        border-color: #2563EB;
+    }
+    
+    .fighter-input-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+    
+    .fighter-input-card.red::before {
+        background: linear-gradient(90deg, #DC2626 0%, #991B1B 100%);
+    }
+    
+    .fighter-input-card.blue::before {
+        background: linear-gradient(90deg, #2563EB 0%, #1E40AF 100%);
+    }
+    
+    .fighter-input-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    }
+    
+    .corner-label {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .corner-label.red {
+        color: #DC2626;
+    }
+    
+    .corner-label.blue {
+        color: #2563EB;
+    }
+    
     .vs-text {
         font-size: 2rem;
-        font-weight: bold;
-        color: #FF6B35;
+        font-weight: 800;
+        color: #111827;
         text-align: center;
         margin: 2rem 0;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    
+    /* Prediction Card */
     .prediction-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
         color: white;
-        padding: 2rem;
-        border-radius: 1rem;
+        padding: 3rem;
+        border-radius: 24px;
         text-align: center;
         margin: 2rem 0;
-        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        position: relative;
+        overflow: hidden;
     }
+    
+    .prediction-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, #FF0000 0%, #000000 50%, #0066FF 100%);
+    }
+    
     .winner-text {
-        font-size: 2.5rem;
-        font-weight: bold;
+        font-size: 3rem;
+        font-weight: 800;
         margin-bottom: 1rem;
+        background: linear-gradient(135deg, #ffffff 0%, #e5e7eb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
+    
     .confidence-text {
         font-size: 1.5rem;
-        opacity: 0.9;
+        color: #d1d5db;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
     }
-    .model-comparison {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
+    
+    .probability-breakdown {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .probability-item {
+        text-align: center;
+    }
+    
+    .probability-label {
+        font-size: 0.875rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    
+    .probability-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+    }
+    
+    /* Model Comparison */
+    .model-comparison-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.06);
+        border: 1px solid rgba(0, 0, 0, 0.05);
         margin: 1rem 0;
+        transition: all 0.3s ease;
     }
+    
+    .model-comparison-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+    
+    .model-name {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 1rem;
+    }
+    
+    .model-prediction {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .prediction-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .prediction-badge.winner {
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+    }
+    
+    .prediction-badge.loser {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+    
+    /* Stats Display */
+    .stats-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        padding: 1.5rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.06);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        margin-bottom: 1rem;
+    }
+    
+    .fighter-name-stats {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+    
+    .fighter-name-stats.red {
+        color: #DC2626;
+    }
+    
+    .fighter-name-stats.blue {
+        color: #2563EB;
+    }
+    
+    .stat-item {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .stat-item:last-child {
+        border-bottom: none;
+    }
+    
+    .stat-label {
+        color: #6b7280;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        color: #111827;
+        font-weight: 700;
+    }
+    
+    /* Confidence Bar */
+    .confidence-bar {
+        height: 10px;
+        border-radius: 5px;
+        background: #e5e7eb;
+        overflow: hidden;
+        margin-top: 0.75rem;
+    }
+    
+    .confidence-fill {
+        height: 100%;
+        border-radius: 5px;
+        transition: width 0.5s ease;
+    }
+    
+    .confidence-fill.high {
+        background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+    }
+    
+    .confidence-fill.medium {
+        background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+    }
+    
+    .confidence-fill.low {
+        background: linear-gradient(90deg, #EF4444 0%, #DC2626 100%);
+    }
+    
+    /* Hide Streamlit default elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -353,7 +595,7 @@ def predict_fight(red_fighter, blue_fighter, models, historical_data):
 def main():
     # Header
     st.markdown('<h1 class="main-header">🥊 UFC Fight Predictor</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">Enter two fighters to predict who would win!</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Enter two fighters to predict who would win!</p>', unsafe_allow_html=True)
     
     # Load data and models
     fighters_list, historical_data = load_fighter_data()
@@ -367,48 +609,51 @@ def main():
     col1, col2, col3 = st.columns([2, 1, 2])
     
     with col1:
-        st.markdown('<div class="fighter-input">', unsafe_allow_html=True)
-        st.markdown("### 🔴 Red Corner")
+        st.markdown('<div class="fighter-input-card red">', unsafe_allow_html=True)
+        st.markdown('<div class="corner-label red">🔴 Red Corner</div>', unsafe_allow_html=True)
         red_fighter = st.selectbox(
             "Select Red Fighter:",
             options=[""] + fighters_list,
             key="red_fighter",
-            help="Choose the fighter for the red corner"
+            help="Choose the fighter for the red corner",
+            label_visibility="collapsed"
         )
         if red_fighter and red_fighter in fighters_list:
             red_stats = get_fighter_stats(red_fighter, historical_data)
             if red_stats:
-                st.caption(f"Avg Wins: {red_stats.get('Wins', 'N/A')}")
-                st.caption(f"Avg Sig Strikes: {red_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if red_stats.get('AvgSigStrLanded') else "")
+                st.caption(f"📊 Avg Wins: {red_stats.get('Wins', 'N/A'):.0f}" if red_stats.get('Wins') else "📊 Avg Wins: N/A")
+                st.caption(f"👊 Avg Sig Strikes: {red_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if red_stats.get('AvgSigStrLanded') else "")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown('<div class="vs-text">VS</div>', unsafe_allow_html=True)
     
     with col3:
-        st.markdown('<div class="fighter-input">', unsafe_allow_html=True)
-        st.markdown("### 🔵 Blue Corner")
+        st.markdown('<div class="fighter-input-card blue">', unsafe_allow_html=True)
+        st.markdown('<div class="corner-label blue">🔵 Blue Corner</div>', unsafe_allow_html=True)
         blue_fighter = st.selectbox(
             "Select Blue Fighter:",
             options=[""] + fighters_list,
             key="blue_fighter",
-            help="Choose the fighter for the blue corner"
+            help="Choose the fighter for the blue corner",
+            label_visibility="collapsed"
         )
         if blue_fighter and blue_fighter in fighters_list:
             blue_stats = get_fighter_stats(blue_fighter, historical_data)
             if blue_stats:
-                st.caption(f"Avg Wins: {blue_stats.get('Wins', 'N/A')}")
-                st.caption(f"Avg Sig Strikes: {blue_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if blue_stats.get('AvgSigStrLanded') else "")
+                st.caption(f"📊 Avg Wins: {blue_stats.get('Wins', 'N/A'):.0f}" if blue_stats.get('Wins') else "📊 Avg Wins: N/A")
+                st.caption(f"👊 Avg Sig Strikes: {blue_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if blue_stats.get('AvgSigStrLanded') else "")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Predict button
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🥊 PREDICT FIGHT OUTCOME", type="primary", use_container_width=True):
         if not red_fighter or not blue_fighter:
-            st.warning("Please select both fighters!")
+            st.warning("⚠️ Please select both fighters!")
         elif red_fighter == blue_fighter:
-            st.warning("Please select different fighters!")
+            st.warning("⚠️ Please select different fighters!")
         else:
-            with st.spinner("Analyzing fighters and predicting outcome..."):
+            with st.spinner("🔮 Analyzing fighters and predicting outcome..."):
                 predictions = predict_fight(red_fighter, blue_fighter, models, historical_data)
                 
                 if predictions:
@@ -419,14 +664,24 @@ def main():
                     # Main prediction card
                     winner_name = red_fighter if main_pred['winner'] == 'Red' else blue_fighter
                     winner_color = "🔴" if main_pred['winner'] == 'Red' else "🔵"
+                    conf_level = "high" if main_pred['confidence'] > 0.7 else "medium" if main_pred['confidence'] > 0.55 else "low"
                     
                     st.markdown(f'''
                     <div class="prediction-card">
                         <div class="winner-text">{winner_color} {winner_name} WINS!</div>
                         <div class="confidence-text">Confidence: {main_pred['confidence']:.1%}</div>
-                        <div style="margin-top: 1rem; font-size: 1.1rem;">
-                            Red Win Probability: {main_pred['red_prob']:.1%}<br>
-                            Blue Win Probability: {1-main_pred['red_prob']:.1%}
+                        <div class="confidence-bar">
+                            <div class="confidence-fill {conf_level}" style="width: {main_pred['confidence']*100}%"></div>
+                        </div>
+                        <div class="probability-breakdown">
+                            <div class="probability-item">
+                                <div class="probability-label">🔴 Red Corner</div>
+                                <div class="probability-value">{main_pred['red_prob']:.1%}</div>
+                            </div>
+                            <div class="probability-item">
+                                <div class="probability-label">🔵 Blue Corner</div>
+                                <div class="probability-value">{1-main_pred['red_prob']:.1%}</div>
+                            </div>
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
@@ -439,44 +694,100 @@ def main():
                             model_display = "Logistic Regression" if model_name == 'logistic' else "Gradient Boosting"
                             winner_name = red_fighter if pred['winner'] == 'Red' else blue_fighter
                             winner_emoji = "🔴" if pred['winner'] == 'Red' else "🔵"
+                            conf_level = "high" if pred['confidence'] > 0.7 else "medium" if pred['confidence'] > 0.55 else "low"
                             
                             st.markdown(f'''
-                            <div class="model-comparison">
-                                <strong>{model_display}</strong><br>
-                                Winner: {winner_emoji} {winner_name} ({pred['confidence']:.1%} confidence)<br>
-                                Red: {pred['red_prob']:.1%} | Blue: {1-pred['red_prob']:.1%}
+                            <div class="model-comparison-card">
+                                <div class="model-name">{model_display}</div>
+                                <div class="model-prediction">
+                                    <span class="prediction-badge winner">{winner_emoji} {winner_name}</span>
+                                    <span style="color: #6b7280; font-weight: 600;">{pred['confidence']:.1%} confidence</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                    <div>
+                                        <div style="color: #6b7280; font-size: 0.875rem;">Red Win Probability</div>
+                                        <div style="color: #DC2626; font-weight: 700; font-size: 1.25rem;">{pred['red_prob']:.1%}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: #6b7280; font-size: 0.875rem;">Blue Win Probability</div>
+                                        <div style="color: #2563EB; font-weight: 700; font-size: 1.25rem;">{1-pred['red_prob']:.1%}</div>
+                                    </div>
+                                </div>
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill {conf_level}" style="width: {pred['confidence']*100}%"></div>
+                                </div>
                             </div>
                             ''', unsafe_allow_html=True)
                     
                     # Fight breakdown
-                    st.markdown("### 🔍 Fight Analysis")
+                    st.markdown("### 🔍 Fighter Statistics")
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.markdown(f"**{red_fighter}** (Red Corner)")
                         red_stats = get_fighter_stats(red_fighter, historical_data)
                         if red_stats:
-                            st.write(f"• Avg Wins: {red_stats.get('Wins', 'N/A')}")
-                            st.write(f"• Avg Sig Strikes: {red_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if red_stats.get('AvgSigStrLanded') else "• Sig Strikes: N/A")
-                            st.write(f"• Avg Takedowns: {red_stats.get('AvgTDLanded', 'N/A'):.1f}" if red_stats.get('AvgTDLanded') else "• Takedowns: N/A")
+                            stats_html = f'''
+                            <div class="stats-card">
+                                <div class="fighter-name-stats red">🔴 {red_fighter}</div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Average Wins</span>
+                                    <span class="stat-value">{red_stats.get('Wins', 'N/A'):.0f if red_stats.get('Wins') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Sig Strikes</span>
+                                    <span class="stat-value">{red_stats.get('AvgSigStrLanded', 'N/A'):.1f if red_stats.get('AvgSigStrLanded') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Takedowns</span>
+                                    <span class="stat-value">{red_stats.get('AvgTDLanded', 'N/A'):.1f if red_stats.get('AvgTDLanded') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Win Streak</span>
+                                    <span class="stat-value">{red_stats.get('CurrentWinStreak', 'N/A'):.0f if red_stats.get('CurrentWinStreak') else 'N/A'}</span>
+                                </div>
+                            </div>
+                            '''
+                            st.markdown(stats_html, unsafe_allow_html=True)
                     
                     with col2:
-                        st.markdown(f"**{blue_fighter}** (Blue Corner)")
                         blue_stats = get_fighter_stats(blue_fighter, historical_data)
                         if blue_stats:
-                            st.write(f"• Avg Wins: {blue_stats.get('Wins', 'N/A')}")
-                            st.write(f"• Avg Sig Strikes: {blue_stats.get('AvgSigStrLanded', 'N/A'):.1f}" if blue_stats.get('AvgSigStrLanded') else "• Sig Strikes: N/A")
-                            st.write(f"• Avg Takedowns: {blue_stats.get('AvgTDLanded', 'N/A'):.1f}" if blue_stats.get('AvgTDLanded') else "• Takedowns: N/A")
+                            stats_html = f'''
+                            <div class="stats-card">
+                                <div class="fighter-name-stats blue">🔵 {blue_fighter}</div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Average Wins</span>
+                                    <span class="stat-value">{blue_stats.get('Wins', 'N/A'):.0f if blue_stats.get('Wins') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Sig Strikes</span>
+                                    <span class="stat-value">{blue_stats.get('AvgSigStrLanded', 'N/A'):.1f if blue_stats.get('AvgSigStrLanded') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Avg Takedowns</span>
+                                    <span class="stat-value">{blue_stats.get('AvgTDLanded', 'N/A'):.1f if blue_stats.get('AvgTDLanded') else 'N/A'}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Win Streak</span>
+                                    <span class="stat-value">{blue_stats.get('CurrentWinStreak', 'N/A'):.0f if blue_stats.get('CurrentWinStreak') else 'N/A'}</span>
+                                </div>
+                            </div>
+                            '''
+                            st.markdown(stats_html, unsafe_allow_html=True)
                 
                 else:
-                    st.error("Could not generate predictions. One or both fighters may not have enough historical data.")
+                    st.error("❌ Could not generate predictions. One or both fighters may not have enough historical data.")
     
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #666; margin-top: 2rem;">
-        <p>🤖 Powered by Machine Learning | 📊 Based on Historical UFC Data</p>
-        <p><small>Predictions are for entertainment purposes only</small></p>
+    <div style="text-align: center; color: #6b7280; margin: 2rem 0; padding: 1rem;">
+        <p style="font-size: 0.875rem; margin: 0.5rem 0;">
+            🤖 Powered by Machine Learning | 📊 Based on Historical UFC Data
+        </p>
+        <p style="font-size: 0.75rem; margin: 0.5rem 0; color: #9ca3af;">
+            Predictions are for entertainment purposes only
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
